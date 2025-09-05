@@ -1,0 +1,95 @@
+name: Export Keynote to PDF
+
+on:
+  push:
+    paths:
+      - "**/*.key"
+      - ".github/workflows/export-keynote.yml"
+  workflow_dispatch:
+    inputs:
+      keynote_glob:
+        description: 'Glob for .key files (default **/*.key)'
+        required: false
+        default: '**/*.key'
+
+jobs:
+  export:
+    runs-on: [self-hosted, macOS]
+    environment: export-keynote
+
+    env:
+      # You can override this at dispatch time with the input above
+      KEYNOTE_GLOB: ${{ github.event.inputs.keynote_glob || '**/*.key' }}
+      OUT_DIR: out-pdf
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Verify Keynote is installed
+        shell: bash
+        run: |
+          if ! osascript -e 'id of app "Keynote"' >/dev/null 2>&1; then
+            echo "Keynote.app not found on this runner. Install from the Mac App Store."
+            exit 1
+          fi
+
+      - name: Prepare output directory
+        shell: bash
+        run: |
+          rm -rf "$OUT_DIR"
+          mkdir -p "$OUT_DIR"
+
+      - name: Find Keynote files
+        id: find_keys
+        shell: bash
+        run: |
+          # Fall back to simple find since bash 3.2 is ancient on macOS
+          files=$(find . -type f -name "*.key")
+          if [ -z "$files" ]; then
+            echo "No .key files found."
+            exit 1
+          fi
+          echo "Found Keynote files:"
+          echo "$files"
+          # Save list for next step
+          printf "%s\n" $files > keynote_files.txt
+
+      - name: Export all Keynote files to PDF
+        shell: bash
+        run: |
+          APPLESCRIPT='
+          on run argv
+            set srcPosix to item 1 of argv
+            set dstPosix to item 2 of argv
+            set srcAlias to POSIX file srcPosix as alias
+            tell application "Keynote"
+              activate
+              set theDoc to open srcAlias
+              try
+                export theDoc to (POSIX file dstPosix) as PDF
+              on error errMsg number errNum
+                try
+                  close theDoc saving no
+                end try
+                error errMsg number errNum
+              end try
+              close theDoc saving no
+            end tell
+          end run
+          '
+          while read keyfile; do
+            [ -z "$keyfile" ] && continue
+            base="$(basename "${keyfile%.key}")"
+            out="$OUT_DIR/$base.pdf"
+            echo "Exporting: $keyfile -> $out"
+            mkdir -p "$(dirname "$out")"
+            osascript -e "$APPLESCRIPT" "$PWD/$keyfile" "$PWD/$out"
+          done < keynote_files.txt
+
+      - name: Upload PDFs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Keynote-PDFs
+          path: ${{ env.OUT_DIR }}/*.pdf
+          if-no-files-found: error
