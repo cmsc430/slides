@@ -2,6 +2,8 @@ name: Export Keynote to PDF
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "**/*.key"
       - ".github/workflows/export-keynote.yml"
@@ -93,3 +95,37 @@ jobs:
           name: Keynote-PDFs
           path: ${{ env.OUT_DIR }}/*.pdf
           if-no-files-found: error
+
+      - name: Publish PDFs to pdfs branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="pdfs"
+          DEST_DIR="."
+          git config user.name  "github-actions"
+          git config user.email "github-actions@github.com"
+          # Ensure we can reference the branch (create if missing)
+          git fetch origin "${BRANCH}:${BRANCH}" || true
+          # Use a worktree so we don't disturb the main checkout
+          if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
+            git worktree add _pdfs "${BRANCH}"
+          else
+            # Create an orphan branch with an empty tree
+            git worktree add -b "${BRANCH}" _pdfs
+            (cd _pdfs && git commit --allow-empty -m "Initialize ${BRANCH} branch")
+          fi
+          # Copy PDFs into the worktree
+          mkdir -p "_pdfs/${DEST_DIR}"
+          cp -f ${OUT_DIR}/*.pdf "_pdfs/${DEST_DIR}/" || true
+          # Commit only if there are changes
+          cd _pdfs
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No PDF changes to commit."
+          else
+            git commit -m "Update PDFs from ${GITHUB_SHA}"
+            git push origin "${BRANCH}"
+          fi
+          # Cleanup worktree
+          cd ..
+          git worktree remove _pdfs --force
