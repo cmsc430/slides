@@ -120,7 +120,7 @@ jobs:
           cp -f "$OUT_DIR/$TARGET_PDF" "./$TARGET_PDF"
           # Commit only if there are changes
           cd _pdfs
-          git add -A
+          git add "$TARGET_PDF"
           if git diff --cached --quiet; then
             echo "No PDF changes to commit."
           else
