@@ -23,6 +23,7 @@ jobs:
       # You can override this at dispatch time with the input above
       KEYNOTE_GLOB: ${{ github.event.inputs.keynote_glob || '**/*.key' }}
       OUT_DIR: out-pdf
+      TARGET_PDF: cmsc430-2025-fall.pdf
 
     steps:
       - name: Check out
@@ -116,7 +117,7 @@ jobs:
           fi
           # Copy PDFs into the worktree
           mkdir -p "_pdfs/${DEST_DIR}"
-          cp -f ${OUT_DIR}/*.pdf "_pdfs/${DEST_DIR}/" || true
+	  cp -f "../$OUT_DIR/$TARGET_PDF" "./$TARGET_PDF"
           # Commit only if there are changes
           cd _pdfs
           git add -A
