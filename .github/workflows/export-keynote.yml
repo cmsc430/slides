@@ -117,7 +117,7 @@ jobs:
           fi
           # Copy PDFs into the worktree
           mkdir -p "_pdfs/${DEST_DIR}"
-	  cp -f "../$OUT_DIR/$TARGET_PDF" "./$TARGET_PDF"
+          cp -f "../$OUT_DIR/$TARGET_PDF" "./$TARGET_PDF"
           # Commit only if there are changes
           cd _pdfs
           git add -A
